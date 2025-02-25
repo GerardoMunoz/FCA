@@ -83,71 +83,146 @@
 
 function visualizeLattice(concepts) {
     const svg = d3.select("#lattice");
-    svg.selectAll("*").remove(); // Clear previous drawing
+    svg.selectAll("*").remove(); // Clear previous visualization
 
-    // Calculate size based on concept count
+    const maxLevel = Math.max(...concepts.map(c => c.level));
+
+
     const conceptCount = concepts.length;
     const baseSize = 150;  // Adjust spacing as needed
     const width = Math.max(800, conceptCount * baseSize);
-    const height = Math.max(600, conceptCount * baseSize);
+    const height = Math.max(600, maxLevel * baseSize);
 
     // **Set SVG size dynamically**
     svg.attr("width", width)
        .attr("height", height)
        .attr("viewBox", `0 0 ${width} ${height}`);
 
+	
     const nodeSpacingX = 150;
     const nodeSpacingY = 100;
 
-    // Compute node positions
+    // Compute max level to center the lattice
+
+    // Assign positions to concepts based on their level
     concepts.forEach((c, i) => {
-        c.x = (i % 3) * nodeSpacingX + 100;  // Offset for spacing
-        c.y = c.level * nodeSpacingY + 50;
+        c.x = (i % 3) * nodeSpacingX + width / 4;
+        c.y = height / 4 + (maxLevel - c.level) * nodeSpacingY;
+		//console.log('pos',i,c.x,c.y,c)
     });
 
-    // Create edges (relations between concepts)
+    // Compute links (edges)
     const links = [];
+	
     for (let i = 0; i < concepts.length; i++) {
-        for (let j = i + 1; j < concepts.length; j++) {
-            if (concepts[i].intent.every(attr => concepts[j].intent.includes(attr))) {
-                links.push({ source: i, target: j });
-            }
+		//console.log()
+        for (let j = 0; j < concepts[i].children.length; j++) {
+        //    if (i !== j && concepts[j].intent.includes(...concepts[i].intent)) {
+                links.push({ source: concepts[i], target: concepts[i].children[j] });
+        //    }
         }
     }
+	
+	
 
-    // Draw edges
+    // Define drag behavior
+    const drag = d3.drag()
+        .on("start", function (event, d) {
+            d3.select(this).raise().attr("stroke", "black");
+        })
+        .on("drag", function (event, d) {
+            d.x = event.x;
+            d.y = event.y;
+            d3.select(this).attr("cx", d.x).attr("cy", d.y);
+            svg.selectAll(".link")
+                .filter(l => l.source === d || l.target === d)
+                .attr("x1", l => l.source.x)
+                .attr("y1", l => l.source.y)
+                .attr("x2", l => l.target.x)
+                .attr("y2", l => l.target.y);
+            svg.selectAll(".label")
+                .filter(l => l === d)
+                .attr("x", d.x)
+                .attr("y", d.y - 25);
+            svg.selectAll(".extent-label")
+                .filter(l => l === d)
+                .attr("x", d.x)
+                .attr("y", d.y + 35);
+        })
+        .on("end", function () {
+            d3.select(this).attr("stroke", null);
+        });
+
+    // Draw links (edges)
     svg.selectAll("line")
         .data(links)
         .enter()
         .append("line")
-        .attr("x1", d => concepts[d.source].x)
-        .attr("y1", d => concepts[d.source].y)
-        .attr("x2", d => concepts[d.target].x)
-        .attr("y2", d => concepts[d.target].y)
+        .attr("class", "link")
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y)
         .attr("stroke", "black");
 
     // Draw nodes (concepts)
-    svg.selectAll("circle")
+    const nodes = svg.selectAll("circle")
         .data(concepts)
         .enter()
         .append("circle")
         .attr("cx", d => d.x)
         .attr("cy", d => d.y)
         .attr("r", 20)
-        .attr("fill", "lightblue");
+        .attr("fill", "#4caf50")
+        .attr("stroke", "black")
+        .attr("stroke-width", 1.5)
+        .call(drag)
+        .on("mouseover", function (event, d) {
+            d3.select(this).attr("fill", "#ffcc00"); // Highlight on hover
+            svg.selectAll(".link")
+                .filter(l => l.source === d || l.target === d)
+                .attr("stroke", "red")
+                .attr("stroke-width", 2);
+        })
+        .on("mouseout", function () {
+            d3.select(this).attr("fill", "#4caf50"); // Reset color
+            svg.selectAll(".link")
+                .attr("stroke", "black")
+                .attr("stroke-width", 1);
+        })
+        .on("click", function (event, d) {
+            alert(`Extent (Gᵢ): {${d.extent.join(", ")}}\nIntent (Mⱼ): {${d.intent.join(", ")}}`);
+        });
 
-    // Draw text labels (concept intents)
-    svg.selectAll("text")
+    // Draw extent (objects G_i) below the nodes
+    svg.selectAll(".extent-label")
         .data(concepts)
         .enter()
         .append("text")
+        .attr("class", "extent-label")
         .attr("x", d => d.x)
         .attr("y", d => d.y + 35)
-        .text(d => `{${d.intent.join(",")}}`)
         .attr("text-anchor", "middle")
-        .style("font-size", "14px");
-}
+        .attr("font-size", "12px")
+        .attr("fill", "#333")
+        .text(d => d.extent.length > 0 ? `{${d.extent.join(",")}}` : "");
 
+    // Draw intent (attributes M_j) above the nodes
+    svg.selectAll(".intent-label")
+        .data(concepts)
+        .enter()
+        .append("text")
+        .attr("class", "label")
+        .attr("x", d => d.x)
+        .attr("y", d => d.y - 25)
+        .attr("text-anchor", "middle")
+        .attr("font-size", "12px")
+        .attr("fill", "#000")
+        .text(d => `{${d.intent.join(",")}}`);
+		
+
+		
+}
 
 
 
@@ -181,40 +256,84 @@ function visualizeLattice(concepts) {
 
 
 function computeFormalConceptsFromList(context) {
-    const objects = context.slice(1).map(row => row[0]); // Extract objects
-    const attributes = context[0].slice(1); // Extract attributes
-    const relations = context.slice(1).map(row => row.slice(1)); // Extract relations
+    const objects = context.slice(1).map(row => row[0]); // Extract object names
+    const attributes = context[0].slice(1); // Extract attribute names
+    const relations = context.slice(1).map(row => row.slice(1)); // Extract relations ("X" or "")
 
-    const concepts = [];
-
-    // Generate all possible subsets of objects
-    const powerSet = (arr) => arr.reduce((subsets, value) => 
-        subsets.concat(subsets.map(set => [value, ...set])), [[]]);
-
-    const allExtents = powerSet(objects); // All possible sets of objects
-
-    allExtents.forEach(extent => {
-        if (extent.length === 0) return; // Ignore empty set
-
-        // Compute common attributes (intent)
-        let intent = [...attributes];
-        extent.forEach(obj => {
+    function attributeClosure(objSubset) {
+        let intent = [...attributes]; // Start with all attributes
+        objSubset.forEach(obj => {
             let objIndex = objects.indexOf(obj);
             let objIntent = attributes.filter((_, j) => relations[objIndex][j] === "X");
             intent = intent.filter(attr => objIntent.includes(attr)); // Intersection
         });
+        return intent;
+    }
 
-        concepts.push({ extent, intent, level: intent.length });
+    function objectClosure(attrSubset) {
+        let extent = objects.filter(obj => {
+            let objIndex = objects.indexOf(obj);
+            return attrSubset.every(attr => relations[objIndex][attributes.indexOf(attr)] === "X");
+        });
+        return extent;
+    }
+
+    const concepts = new Map();
+
+    // Generate all possible subsets of attributes (powerset)
+    const powerSet = (arr) => arr.reduce((subsets, value) =>
+        subsets.concat(subsets.map(set => [value, ...set])), [[]]);
+
+    powerSet(attributes).forEach(attrSubset => {
+        let extent = objectClosure(attrSubset);
+        let intent = attributeClosure(extent);
+        let key = JSON.stringify({ extent, intent });
+
+        if (!concepts.has(key)) {
+            concepts.set(key, { extent, intent, level: -intent.length+extent.length+attributes.length });
+        }
     });
 
-    // Add the bottom (full intent) and top (empty intent) concepts
-    concepts.push({ extent: objects, intent: [], level: 0 }); // ⊥ (bottom)
-    concepts.push({ extent: [], intent: attributes, level: attributes.length }); // ⊤ (top)
+    let conceptList = Array.from(concepts.values()).sort((a, b) => a.level - b.level);
 
-    // Sort by level (intent size)
-    concepts.sort((a, b) => a.level - b.level);
+    // **Fix: Establish Parent-Child Relationships**
+    conceptList.forEach(concept => {
+        concept.children = [];
+        conceptList.forEach(otherConcept => {
+            if (concept !== otherConcept &&
+                isSubset(concept.extent, otherConcept.extent) &&
+                isSubset(otherConcept.intent, concept.intent)) {
+                concept.children.push(otherConcept);
+				//console.log('child',concept.extent, otherConcept.extent)
+            }
+        });
+    });
+	
+	
+	function removeGrandC(parent,descendants){
+		for (child of descendants){
+			for (grandC of child.children){
+				if (parent.children.includes(grandC)){
+					parent.children.splice(parent.children.indexOf(grandC),1);
+				}
+				//for (grandgrandC of grandC.children) {
+				//	console.log('remove',parent,grandgrandC)
+					removeGrandC(parent,grandC.children);
+				//}
+			}
+			removeGrandC(child,child.children);
+		}
+	}
+	
+	console.log('conceptList',conceptList)
+    conceptList.forEach(concept=>removeGrandC(concept,concept.children));
 
-    return concepts;
+    return conceptList;
+}
+
+// **Helper function to check subset relation**
+function isSubset(subset, superset) {
+    return subset.every(item => superset.includes(item));
 }
 
 
