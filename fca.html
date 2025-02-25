@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FCA Editor with CSV Upload/Download</title>
+   <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        td, th {
+            border: 1px solid black;
+            padding: 10px;
+            text-align: center;
+        }
+        th input {
+            text-align: center;
+            height: 30px;  /* Set height of text input */
+            width: 30px;   /* Set width of the text input */
+            padding: 5px 0;
+        }
+        td {
+            width: 30px; /* Set width of table cells to match input height */
+        }
+        td.active {
+            background-color: #4caf50;
+            color: white;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button, input[type="file"] {
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>FCA (G, M, R) Editor</h1>
+
+    <!-- File name input for download -->
+    <label for="filename">CSV File Name:</label>
+    <input type="text" id="filename" placeholder="context.csv">
+    
+    <!-- Control Buttons -->
+    <div class="controls">
+        <button onclick="addRow()">Add Row (G)</button>
+        <button onclick="addColumn()">Add Column (M)</button>
+        <button onclick="downloadCSV()">Download CSV</button>
+        <input type="file" id="uploadCSV" accept=".csv" onchange="uploadCSV(this)">
+        <button onclick="generateConceptLattice()">Generate Concept Lattice</button>
+    </div>
+    
+    <!-- FCA Table -->
+    <table id="fca-table">
+        <thead>
+            <tr id="header-row">
+                <th></th> <!-- Empty corner cell -->
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+	<svg id="lattice" width="600" height="400" style="border:1px solid black;"></svg>
+ 
+    <script>
+        let rowCount = 0;
+        let colCount = 0;
+
+
+        function generateConceptLattice() {
+            const context = getTableAsList()
+			console.log(context)
+			const concept =computeFormalConceptsFromList(context)
+			console.log(concept)
+			visualizeLattice(concept)
+			
+        }
+
+
+function visualizeLattice(concepts) {
+    const svg = d3.select("#lattice");
+    svg.selectAll("*").remove(); // Clear previous drawing
+
+    // Calculate size based on concept count
+    const conceptCount = concepts.length;
+    const baseSize = 150;  // Adjust spacing as needed
+    const width = Math.max(800, conceptCount * baseSize);
+    const height = Math.max(600, conceptCount * baseSize);
+
+    // **Set SVG size dynamically**
+    svg.attr("width", width)
+       .attr("height", height)
+       .attr("viewBox", `0 0 ${width} ${height}`);
+
+    const nodeSpacingX = 150;
+    const nodeSpacingY = 100;
+
+    // Compute node positions
+    concepts.forEach((c, i) => {
+        c.x = (i % 3) * nodeSpacingX + 100;  // Offset for spacing
+        c.y = c.level * nodeSpacingY + 50;
+    });
+
+    // Create edges (relations between concepts)
+    const links = [];
+    for (let i = 0; i < concepts.length; i++) {
+        for (let j = i + 1; j < concepts.length; j++) {
+            if (concepts[i].intent.every(attr => concepts[j].intent.includes(attr))) {
+                links.push({ source: i, target: j });
+            }
+        }
+    }
+
+    // Draw edges
+    svg.selectAll("line")
+        .data(links)
+        .enter()
+        .append("line")
+        .attr("x1", d => concepts[d.source].x)
+        .attr("y1", d => concepts[d.source].y)
+        .attr("x2", d => concepts[d.target].x)
+        .attr("y2", d => concepts[d.target].y)
+        .attr("stroke", "black");
+
+    // Draw nodes (concepts)
+    svg.selectAll("circle")
+        .data(concepts)
+        .enter()
+        .append("circle")
+        .attr("cx", d => d.x)
+        .attr("cy", d => d.y)
+        .attr("r", 20)
+        .attr("fill", "lightblue");
+
+    // Draw text labels (concept intents)
+    svg.selectAll("text")
+        .data(concepts)
+        .enter()
+        .append("text")
+        .attr("x", d => d.x)
+        .attr("y", d => d.y + 35)
+        .text(d => `{${d.intent.join(",")}}`)
+        .attr("text-anchor", "middle")
+        .style("font-size", "14px");
+}
+
+
+
+
+
+		function getTableAsList() {
+			let tableData = [];
+
+			// Get attribute names from header row
+			let headerRow = [""];
+			document.querySelectorAll("#header-row th input").forEach(input => {
+				headerRow.push(input.value);
+			});
+			tableData.push(headerRow);
+
+			// Get rows with object names and relations
+			document.querySelectorAll("#fca-table tbody tr").forEach(row => {
+				let rowData = [];
+				let objectName = row.querySelector("th input").value;
+				rowData.push(objectName); // Add object name
+
+				row.querySelectorAll("td").forEach(cell => {
+					rowData.push(cell.classList.contains("active") ? "X" : "");
+				});
+
+				tableData.push(rowData);
+			});
+
+			//console.log(tableData); // Debugging output
+			return tableData;
+		}
+
+
+function computeFormalConceptsFromList(context) {
+    const objects = context.slice(1).map(row => row[0]); // Extract objects
+    const attributes = context[0].slice(1); // Extract attributes
+    const relations = context.slice(1).map(row => row.slice(1)); // Extract relations
+
+    const concepts = [];
+
+    // Generate all possible subsets of objects
+    const powerSet = (arr) => arr.reduce((subsets, value) => 
+        subsets.concat(subsets.map(set => [value, ...set])), [[]]);
+
+    const allExtents = powerSet(objects); // All possible sets of objects
+
+    allExtents.forEach(extent => {
+        if (extent.length === 0) return; // Ignore empty set
+
+        // Compute common attributes (intent)
+        let intent = [...attributes];
+        extent.forEach(obj => {
+            let objIndex = objects.indexOf(obj);
+            let objIntent = attributes.filter((_, j) => relations[objIndex][j] === "X");
+            intent = intent.filter(attr => objIntent.includes(attr)); // Intersection
+        });
+
+        concepts.push({ extent, intent, level: intent.length });
+    });
+
+    // Add the bottom (full intent) and top (empty intent) concepts
+    concepts.push({ extent: objects, intent: [], level: 0 }); // ⊥ (bottom)
+    concepts.push({ extent: [], intent: attributes, level: attributes.length }); // ⊤ (top)
+
+    // Sort by level (intent size)
+    concepts.sort((a, b) => a.level - b.level);
+
+    return concepts;
+}
+
+
+        // Function to add a new row (G)
+        function addRow(name = '') {
+            rowCount++;
+            let tableBody = document.querySelector('#fca-table tbody');
+            let newRow = document.createElement('tr');
+            newRow.setAttribute('id', 'row-' + rowCount);
+
+            // First column is the row label (G)
+            let rowLabel = document.createElement('th');
+            let input = document.createElement('input');
+            input.type = 'text';
+            input.value = name || 'G' + rowCount;
+            rowLabel.appendChild(input);
+            newRow.appendChild(rowLabel);
+
+            // Add columns with toggles
+            for (let i = 0; i < colCount; i++) {
+                let cell = createToggleableCell();
+                newRow.appendChild(cell);
+            }
+
+            tableBody.appendChild(newRow);
+        }
+
+        // Function to add a new column (M)
+        function addColumn(name = '') {
+            colCount++;
+            let headerRow = document.querySelector('#header-row');
+            let newHeader = document.createElement('th');
+            let input = document.createElement('input');
+            input.type = 'text';
+            input.value = name || 'M' + colCount;
+            newHeader.appendChild(input);
+            headerRow.appendChild(newHeader);
+
+            // Add new cells to each row in the table body
+            let rows = document.querySelectorAll('#fca-table tbody tr');
+            rows.forEach(row => {
+                let cell = createToggleableCell();
+                row.appendChild(cell);
+            });
+        }
+
+        // Function to create a toggleable cell (R) - now uses 'X' for active and '' for inactive
+        function createToggleableCell(value = '') {
+            let cell = document.createElement('td');
+            cell.textContent = value === 'X' ? 'X' : '';  // Initially set to '' or 'X' from upload
+            if (value === 'X') cell.classList.add('active');
+            cell.addEventListener('click', function() {
+                if (this.classList.contains('active')) {
+                    this.classList.remove('active');
+                    this.textContent = '';  // Unset relation
+                } else {
+                    this.classList.add('active');
+                    this.textContent = 'X';  // Set relation
+                }
+            });
+            return cell;
+        }
+
+        // Function to download the table as CSV
+        function downloadCSV() {
+            let filename = document.getElementById('filename').value || 'context.csv';
+            let csvContent = [];
+            let headerRow = ['']; // First empty cell in top-left corner
+
+            // Get the column headers
+            document.querySelectorAll('#header-row th input').forEach(input => {
+                headerRow.push(input.value);
+            });
+            csvContent.push(headerRow.join(','));
+
+            // Get the rows and their relations
+            document.querySelectorAll('#fca-table tbody tr').forEach(row => {
+                let rowData = [];
+                let rowLabel = row.querySelector('th input').value;
+                rowData.push(rowLabel);
+
+                row.querySelectorAll('td').forEach(cell => {
+                    rowData.push(cell.textContent === 'X' ? 'X' : '');
+                });
+
+                csvContent.push(rowData.join(','));
+            });
+
+            // Create CSV file content
+            let csvFile = new Blob([csvContent.join('\n')], { type: 'text/csv' });
+
+            // Create download link
+            let downloadLink = document.createElement('a');
+            downloadLink.download = filename;
+            downloadLink.href = window.URL.createObjectURL(csvFile);
+            downloadLink.style.display = 'none';
+            document.body.appendChild(downloadLink);
+
+            // Trigger the download
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+
+        // Function to upload CSV and populate table (replaces current data)
+        function uploadCSV(input) {
+            let file = input.files[0];
+            if (!file) return;
+
+            let reader = new FileReader();
+            reader.onload = function(event) {
+                let csvData = event.target.result;
+                let rows = csvData.split('\n').map(row => row.split(','));
+
+                // Clear the existing table
+                document.querySelector('#fca-table tbody').innerHTML = '';
+                document.querySelector('#header-row').innerHTML = '<th></th>'; // Reset headers
+                rowCount = 0;
+                colCount = 0;
+
+                // Load column headers
+                let headerRow = rows.shift();
+                headerRow.slice(1).forEach(header => addColumn(header));
+
+                // Load rows and their data
+                rows.forEach(row => {
+                    let rowName = row[0];
+                    let rowValues = row.slice(1);
+                    addRow(rowName);
+
+                    let lastRow = document.querySelector('#fca-table tbody tr:last-child');
+                    let cells = lastRow.querySelectorAll('td');
+                    rowValues.forEach((value, index) => {
+                        cells[index].textContent = value === 'X' ? 'X' : '';
+                        if (value === 'X') cells[index].classList.add('active');
+                    });
+                });
+            };
+            reader.readAsText(file);
+        }
+    </script>
+
+</body>
+</html>
