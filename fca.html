@@ -112,7 +112,7 @@ function visualizeLattice(concepts) {
 
     // Assign positions to concepts based on their level
     concepts.forEach((c, i) => {
-        c.x = (i % 3) * nodeSpacingX + width / 4;
+        c.x = c.ind_val * nodeSpacingX + width / 4; //(i % 3) * nodeSpacingX + width / 4;
         c.y = height / 4 + (maxLevel - c.level) * nodeSpacingY;
 		//console.log('pos',i,c.x,c.y,c)
     });
@@ -289,14 +289,19 @@ function computeFormalConceptsFromList(context) {
     // Generate all possible subsets of attributes (powerset)
     const powerSet = (arr) => arr.reduce((subsets, value) =>
         subsets.concat(subsets.map(set => [value, ...set])), [[]]);
-
+    let ind_val={}
+ 
     powerSet(attributes).forEach(attrSubset => {
         let extent = objectClosure(attrSubset);
         let intent = attributeClosure(extent);
         let key = JSON.stringify({ extent, intent });
-
+        let level= -intent.length+extent.length+attributes.length
+        if (!(level in ind_val)) {
+            ind_val[level] = 0; // Initialize with 0 if it doesn't exist
+        }
+        ind_val[level]++;   
         if (!concepts.has(key)) {
-            concepts.set(key, { extent, intent, level: -intent.length+extent.length+attributes.length });
+            concepts.set(key, { extent, intent, level: level, ind_val: ind_val[level] });
         }
     });
 
