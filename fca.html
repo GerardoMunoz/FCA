@@ -6,13 +6,19 @@
     <title>FCA Editor with CSV Upload/Download</title>
    <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: black;
+                color: white;
+            }
+        }
         table {
             border-collapse: collapse;
             width: 100%;
             margin: 20px 0;
         }
         td, th {
-            border: 1px solid black;
+            border: 1px solid gray;
             padding: 10px;
             text-align: center;
         }
@@ -64,7 +70,7 @@
         <tbody>
         </tbody>
     </table>
-	<svg id="lattice" width="600" height="400" style="border:1px solid black;"></svg>
+	<svg id="lattice" width="600" height="400" style="border:1px solid gray;"></svg>
  
     <script>
         let rowCount = 0;
@@ -128,7 +134,7 @@ function visualizeLattice(concepts) {
     // Define drag behavior
     const drag = d3.drag()
         .on("start", function (event, d) {
-            d3.select(this).raise().attr("stroke", "black");
+            d3.select(this).raise().attr("stroke", "gray");
         })
         .on("drag", function (event, d) {
             d.x = event.x;
@@ -163,7 +169,7 @@ function visualizeLattice(concepts) {
         .attr("y1", d => d.source.y)
         .attr("x2", d => d.target.x)
         .attr("y2", d => d.target.y)
-        .attr("stroke", "black");
+        .attr("stroke", "gray");
 
     // Draw nodes (concepts)
     const nodes = svg.selectAll("circle")
@@ -174,7 +180,7 @@ function visualizeLattice(concepts) {
         .attr("cy", d => d.y)
         .attr("r", 20)
         .attr("fill", "#4caf50")
-        .attr("stroke", "black")
+        .attr("stroke", "gray")
         .attr("stroke-width", 1.5)
         .call(drag)
         .on("mouseover", function (event, d) {
@@ -187,7 +193,7 @@ function visualizeLattice(concepts) {
         .on("mouseout", function () {
             d3.select(this).attr("fill", "#4caf50"); // Reset color
             svg.selectAll(".link")
-                .attr("stroke", "black")
+                .attr("stroke", "gray")
                 .attr("stroke-width", 1);
         })
         .on("click", function (event, d) {
@@ -204,7 +210,7 @@ function visualizeLattice(concepts) {
         .attr("y", d => d.y + 35)
         .attr("text-anchor", "middle")
         .attr("font-size", "12px")
-        .attr("fill", "#333")
+        .attr("fill", "#888")
         .text(d => d.extent.length > 0 ? `{${d.extent.join(",")}}` : "");
 
     // Draw intent (attributes M_j) above the nodes
@@ -217,7 +223,7 @@ function visualizeLattice(concepts) {
         .attr("y", d => d.y - 25)
         .attr("text-anchor", "middle")
         .attr("font-size", "12px")
-        .attr("fill", "#000")
+        .attr("fill", "#888")
         .text(d => `{${d.intent.join(",")}}`);
 		
 
@@ -316,10 +322,7 @@ function computeFormalConceptsFromList(context) {
 				if (parent.children.includes(grandC)){
 					parent.children.splice(parent.children.indexOf(grandC),1);
 				}
-				//for (grandgrandC of grandC.children) {
-				//	console.log('remove',parent,grandgrandC)
-					removeGrandC(parent,grandC.children);
-				//}
+				removeGrandC(parent,grandC.children);
 			}
 			removeGrandC(child,child.children);
 		}
