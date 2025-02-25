@@ -15,16 +15,20 @@
         table {
             border-collapse: collapse;
             width: 100%;
-            margin: 20px 0;
+            margin: 5px 0;
+            table-layout: fixed; /* Ensures all columns take equal width */
         }
         td, th {
             border: 1px solid gray;
-            padding: 10px;
+            padding: 5px;
             text-align: center;
+            width: 1%; /* Distributes width equally among columns */
+            overflow: hidden; /* Prevents content from overflowing */
+            white-space: nowrap; /* Keeps text in a single line */
         }
         th input {
             text-align: center;
-            height: 30px;  /* Set height of text input */
+            height: 10px;  /* Set height of text input */
             width: 30px;   /* Set width of the text input */
             padding: 5px 0;
         }
@@ -95,9 +99,11 @@ function visualizeLattice(concepts) {
 
 
     const conceptCount = concepts.length;
-    const baseSize = 150;  // Adjust spacing as needed
-    const width = Math.max(800, conceptCount * baseSize);
-    const height = Math.max(600, maxLevel * baseSize);
+    const baseSize = 15;  // Adjust spacing as needed
+    const nodeSpacingX = 50;
+    const nodeSpacingY = 50;
+    const width = Math.max(800, conceptCount * nodeSpacingX);
+    const height = Math.max(600, (maxLevel +3) * nodeSpacingY);
 
     // **Set SVG size dynamically**
     svg.attr("width", width)
@@ -105,15 +111,12 @@ function visualizeLattice(concepts) {
        .attr("viewBox", `0 0 ${width} ${height}`);
 
 	
-    const nodeSpacingX = 150;
-    const nodeSpacingY = 100;
-
     // Compute max level to center the lattice
 
     // Assign positions to concepts based on their level
     concepts.forEach((c, i) => {
-        c.x = c.ind_val * nodeSpacingX + width / 4; //(i % 3) * nodeSpacingX + width / 4;
-        c.y = height / 4 + (maxLevel - c.level) * nodeSpacingY;
+        c.x = c.ind_val * nodeSpacingX ; //(i % 3) * nodeSpacingX + width / 4;
+        c.y = 2* maxLevel+(maxLevel - c.level) * nodeSpacingY;
 		//console.log('pos',i,c.x,c.y,c)
     });
 
@@ -178,7 +181,7 @@ function visualizeLattice(concepts) {
         .append("circle")
         .attr("cx", d => d.x)
         .attr("cy", d => d.y)
-        .attr("r", 20)
+        .attr("r", 10)
         .attr("fill", "#4caf50")
         .attr("stroke", "gray")
         .attr("stroke-width", 1.5)
@@ -207,11 +210,11 @@ function visualizeLattice(concepts) {
         .append("text")
         .attr("class", "extent-label")
         .attr("x", d => d.x)
-        .attr("y", d => d.y + 35)
+        .attr("y", d => d.y + 20)
         .attr("text-anchor", "middle")
         .attr("font-size", "12px")
         .attr("fill", "#888")
-        .text(d => d.extent.length > 0 ? `{${d.extent.join(",")}}` : "");
+        .text(d => d.new_extent.length > 0 ? `{${d.new_extent.join(",")}}` : "");
 
     // Draw intent (attributes M_j) above the nodes
     svg.selectAll(".intent-label")
@@ -220,11 +223,11 @@ function visualizeLattice(concepts) {
         .append("text")
         .attr("class", "label")
         .attr("x", d => d.x)
-        .attr("y", d => d.y - 25)
+        .attr("y", d => d.y - 10)
         .attr("text-anchor", "middle")
         .attr("font-size", "12px")
         .attr("fill", "#888")
-        .text(d => `{${d.intent.join(",")}}`);
+        .text(d => `{${d.new_intent.join(",")}}`);
 		
 
 		
@@ -285,23 +288,23 @@ function computeFormalConceptsFromList(context) {
     }
 
     const concepts = new Map();
+    let ind_val={}
 
     // Generate all possible subsets of attributes (powerset)
     const powerSet = (arr) => arr.reduce((subsets, value) =>
         subsets.concat(subsets.map(set => [value, ...set])), [[]]);
-    let ind_val={}
  
     powerSet(attributes).forEach(attrSubset => {
         let extent = objectClosure(attrSubset);
         let intent = attributeClosure(extent);
         let key = JSON.stringify({ extent, intent });
-        let level= -intent.length+extent.length+attributes.length
+        let level= intent.length-extent.length+objects.length
         if (!(level in ind_val)) {
             ind_val[level] = 0; // Initialize with 0 if it doesn't exist
         }
-        ind_val[level]++;   
         if (!concepts.has(key)) {
-            concepts.set(key, { extent, intent, level: level, ind_val: ind_val[level] });
+            ind_val[level]++;   
+            concepts.set(key, { extent, intent, level: level, ind_val: ind_val[level], new_extent:[], new_intent:[] });
         }
     });
 
@@ -332,9 +335,15 @@ function computeFormalConceptsFromList(context) {
 			removeGrandC(child,child.children);
 		}
 	}
-	
 	console.log('conceptList',conceptList)
     conceptList.forEach(concept=>removeGrandC(concept,concept.children));
+    
+    for (concept of conceptList){
+        for (child of concept.children){
+            concept['new_intent']=concept.intent.filter(item => !child.intent.includes(item));
+            child['new_extent']=child.extent.filter(item => !concept.extent.includes(item));
+        }
+    }
 
     return conceptList;
 }
