@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FCA Editor with CSV Upload/Download</title>
-   <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         @media (prefers-color-scheme: dark) {
             body {
@@ -12,41 +13,58 @@
                 color: white;
             }
         }
+
         table {
             border-collapse: collapse;
             width: 100%;
             margin: 5px 0;
-            table-layout: fixed; /* Ensures all columns take equal width */
+            table-layout: fixed;
+            /* Ensures all columns take equal width */
         }
-        td, th {
+
+        td,
+        th {
             border: 1px solid gray;
             padding: 5px;
             text-align: center;
-            width: 1%; /* Distributes width equally among columns */
-            overflow: hidden; /* Prevents content from overflowing */
-            white-space: nowrap; /* Keeps text in a single line */
+            width: 1%;
+            /* Distributes width equally among columns */
+            overflow: hidden;
+            /* Prevents content from overflowing */
+            white-space: nowrap;
+            /* Keeps text in a single line */
         }
+
         th input {
             text-align: center;
-            height: 10px;  /* Set height of text input */
-            width: 30px;   /* Set width of the text input */
+            height: 10px;
+            /* Set height of text input */
+            width: 30px;
+            /* Set width of the text input */
             padding: 5px 0;
         }
+
         td {
-            width: 30px; /* Set width of table cells to match input height */
+            width: 30px;
+            /* Set width of table cells to match input height */
         }
+
         td.active {
             background-color: #4caf50;
             color: white;
         }
+
         .controls {
             margin: 20px 0;
         }
-        button, input[type="file"] {
+
+        button,
+        input[type="file"] {
             margin: 5px;
         }
     </style>
 </head>
+
 <body>
 
     <h1>FCA (G, M, R) Editor</h1>
@@ -54,7 +72,7 @@
     <!-- File name input for download -->
     <label for="filename">CSV File Name:</label>
     <input type="text" id="filename" placeholder="context.csv">
-    
+
     <!-- Control Buttons -->
     <div class="controls">
         <button onclick="addRow()">Add Row (G)</button>
@@ -62,8 +80,10 @@
         <button onclick="downloadCSV()">Download CSV</button>
         <input type="file" id="uploadCSV" accept=".csv" onchange="uploadCSV(this)">
         <button onclick="generateConceptLattice()">Generate Concept Lattice</button>
+        <button onclick="downloadJSON()">Save as JSON</button>
+        <input type="file" id="uploadJSON" accept=".json" onchange="uploadJSON(this)">
     </div>
-    
+
     <!-- FCA Table -->
     <table id="fca-table">
         <thead>
@@ -74,8 +94,8 @@
         <tbody>
         </tbody>
     </table>
-	<svg id="lattice" width="600" height="400" style="border:1px solid gray;"></svg>
- 
+    <svg id="lattice" width="600" height="400" style="border:1px solid gray;"></svg>
+
     <script>
         let rowCount = 0;
         let colCount = 0;
@@ -83,275 +103,306 @@
 
         function generateConceptLattice() {
             const context = getTableAsList()
-			console.log(context)
-			const concept =computeFormalConceptsFromList(context)
-			console.log(concept)
-			visualizeLattice(concept)
-			
+            console.log(context)
+            const concept = computeFormalConceptsFromList(context)
+            console.log(concept)
+            visualizeLattice(concept)
+
         }
 
 
-function visualizeLattice(concepts) {
-    const svg = d3.select("#lattice");
-    svg.selectAll("*").remove(); // Clear previous visualization
-
-    const maxLevel = Math.max(...concepts.map(c => c.level));
-
-
-    const conceptCount = concepts.length;
-    const baseSize = 15;  // Adjust spacing as needed
-    const nodeSpacingX = 50;
-    const nodeSpacingY = 50;
-    const width = Math.max(800, conceptCount * nodeSpacingX);
-    const height = Math.max(600, (maxLevel +3) * nodeSpacingY);
-
-    // **Set SVG size dynamically**
-    svg.attr("width", width)
-       .attr("height", height)
-       .attr("viewBox", `0 0 ${width} ${height}`);
-
-	
-    // Compute max level to center the lattice
-
-    // Assign positions to concepts based on their level
-    concepts.forEach((c, i) => {
-        c.x = c.ind_val * nodeSpacingX ; //(i % 3) * nodeSpacingX + width / 4;
-        c.y = 2* maxLevel+(maxLevel - c.level) * nodeSpacingY;
-		//console.log('pos',i,c.x,c.y,c)
-    });
-
-    // Compute links (edges)
-    const links = [];
-	
-    for (let i = 0; i < concepts.length; i++) {
-		//console.log()
-        for (let j = 0; j < concepts[i].children.length; j++) {
-        //    if (i !== j && concepts[j].intent.includes(...concepts[i].intent)) {
-                links.push({ source: concepts[i], target: concepts[i].children[j] });
-        //    }
+        function downloadJSON() {
+            const data = {
+                context: getTableAsList(),
+                concepts: Array.from(concepts.entries())
+            };
+            const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = "fca_data.json";
+            link.click();
         }
-    }
-	
-	
 
-    // Define drag behavior
-    const drag = d3.drag()
-        .on("start", function (event, d) {
-            d3.select(this).raise().attr("stroke", "gray");
-        })
-        .on("drag", function (event, d) {
-            d.x = event.x;
-            d.y = event.y;
-            d3.select(this).attr("cx", d.x).attr("cy", d.y);
-            svg.selectAll(".link")
-                .filter(l => l.source === d || l.target === d)
-                .attr("x1", l => l.source.x)
-                .attr("y1", l => l.source.y)
-                .attr("x2", l => l.target.x)
-                .attr("y2", l => l.target.y);
-            svg.selectAll(".label")
-                .filter(l => l === d)
-                .attr("x", d.x)
-                .attr("y", d.y - 25);
-            svg.selectAll(".extent-label")
-                .filter(l => l === d)
-                .attr("x", d.x)
-                .attr("y", d.y + 35);
-        })
-        .on("end", function () {
-            d3.select(this).attr("stroke", null);
-        });
+        function uploadJSON(input) {
+            const file = input.files[0];
+            if (!file) return;
 
-    // Draw links (edges)
-    svg.selectAll("line")
-        .data(links)
-        .enter()
-        .append("line")
-        .attr("class", "link")
-        .attr("x1", d => d.source.x)
-        .attr("y1", d => d.source.y)
-        .attr("x2", d => d.target.x)
-        .attr("y2", d => d.target.y)
-        .attr("stroke", "gray");
+            const reader = new FileReader();
+            reader.onload = function (event) {
+                const data = JSON.parse(event.target.result);
+                loadTableFromList(data.context);
+                const context = getTableAsList()
+                concepts = new Map(data.concepts);
+                const allconcepts = computeFormalConceptsFromList(context,concepts)
+                console.log('uploadJSON', concepts,allconcepts,context)
+                visualizeLattice(allconcepts);
+            };
 
-    // Draw nodes (concepts)
-    const nodes = svg.selectAll("circle")
-        .data(concepts)
-        .enter()
-        .append("circle")
-        .attr("cx", d => d.x)
-        .attr("cy", d => d.y)
-        .attr("r", 10)
-        .attr("fill", "#4caf50")
-        .attr("stroke", "gray")
-        .attr("stroke-width", 1.5)
-        .call(drag)
-        .on("mouseover", function (event, d) {
-            d3.select(this).attr("fill", "#ffcc00"); // Highlight on hover
-            svg.selectAll(".link")
-                .filter(l => l.source === d || l.target === d)
-                .attr("stroke", "red")
-                .attr("stroke-width", 2);
-        })
-        .on("mouseout", function () {
-            d3.select(this).attr("fill", "#4caf50"); // Reset color
-            svg.selectAll(".link")
-                .attr("stroke", "gray")
-                .attr("stroke-width", 1);
-        })
-        .on("click", function (event, d) {
-            alert(`Extent (Gᵢ): {${d.extent.join(", ")}}\nIntent (Mⱼ): {${d.intent.join(", ")}}`);
-        });
-
-    // Draw extent (objects G_i) below the nodes
-    svg.selectAll(".extent-label")
-        .data(concepts)
-        .enter()
-        .append("text")
-        .attr("class", "extent-label")
-        .attr("x", d => d.x)
-        .attr("y", d => d.y + 20)
-        .attr("text-anchor", "middle")
-        .attr("font-size", "12px")
-        .attr("fill", "#888")
-        .text(d => d.new_extent.length > 0 ? `{${d.new_extent.join(",")}}` : "");
-
-    // Draw intent (attributes M_j) above the nodes
-    svg.selectAll(".intent-label")
-        .data(concepts)
-        .enter()
-        .append("text")
-        .attr("class", "label")
-        .attr("x", d => d.x)
-        .attr("y", d => d.y - 10)
-        .attr("text-anchor", "middle")
-        .attr("font-size", "12px")
-        .attr("fill", "#888")
-        .text(d => `{${d.new_intent.join(",")}}`);
-		
-
-		
-}
-
-
-
-
-		function getTableAsList() {
-			let tableData = [];
-
-			// Get attribute names from header row
-			let headerRow = [""];
-			document.querySelectorAll("#header-row th input").forEach(input => {
-				headerRow.push(input.value);
-			});
-			tableData.push(headerRow);
-
-			// Get rows with object names and relations
-			document.querySelectorAll("#fca-table tbody tr").forEach(row => {
-				let rowData = [];
-				let objectName = row.querySelector("th input").value;
-				rowData.push(objectName); // Add object name
-
-				row.querySelectorAll("td").forEach(cell => {
-					rowData.push(cell.classList.contains("active") ? "X" : "");
-				});
-
-				tableData.push(rowData);
-			});
-
-			//console.log(tableData); // Debugging output
-			return tableData;
-		}
-
-
-function computeFormalConceptsFromList(context) {
-    const objects = context.slice(1).map(row => row[0]); // Extract object names
-    const attributes = context[0].slice(1); // Extract attribute names
-    const relations = context.slice(1).map(row => row.slice(1)); // Extract relations ("X" or "")
-
-    function attributeClosure(objSubset) {
-        let intent = [...attributes]; // Start with all attributes
-        objSubset.forEach(obj => {
-            let objIndex = objects.indexOf(obj);
-            let objIntent = attributes.filter((_, j) => relations[objIndex][j] === "X");
-            intent = intent.filter(attr => objIntent.includes(attr)); // Intersection
-        });
-        return intent;
-    }
-
-    function objectClosure(attrSubset) {
-        let extent = objects.filter(obj => {
-            let objIndex = objects.indexOf(obj);
-            return attrSubset.every(attr => relations[objIndex][attributes.indexOf(attr)] === "X");
-        });
-        return extent;
-    }
-
-    const concepts = new Map();
-    let ind_val={}
-
-    // Generate all possible subsets of attributes (powerset)
-    const powerSet = (arr) => arr.reduce((subsets, value) =>
-        subsets.concat(subsets.map(set => [value, ...set])), [[]]);
- 
-    powerSet(attributes).forEach(attrSubset => {
-        let extent = objectClosure(attrSubset);
-        let intent = attributeClosure(extent);
-        let key = JSON.stringify({ extent, intent });
-        let level= intent.length-extent.length+objects.length
-        if (!(level in ind_val)) {
-            ind_val[level] = 0; // Initialize with 0 if it doesn't exist
+            reader.readAsText(file);
         }
-        if (!concepts.has(key)) {
-            ind_val[level]++;   
-            concepts.set(key, { extent, intent, level: level, ind_val: ind_val[level], new_extent:[], new_intent:[] });
-        }
-    });
 
-    let conceptList = Array.from(concepts.values()).sort((a, b) => a.level - b.level);
 
-    // **Fix: Establish Parent-Child Relationships**
-    conceptList.forEach(concept => {
-        concept.children = [];
-        conceptList.forEach(otherConcept => {
-            if (concept !== otherConcept &&
-                isSubset(concept.extent, otherConcept.extent) &&
-                isSubset(otherConcept.intent, concept.intent)) {
-                concept.children.push(otherConcept);
-				//console.log('child',concept.extent, otherConcept.extent)
+        function visualizeLattice(concepts) {
+            const svg = d3.select("#lattice");
+            svg.selectAll("*").remove(); // Clear previous visualization
+
+            const maxLevel = Math.max(...concepts.map(c => c.level));
+
+
+            const conceptCount = concepts.length;
+            const baseSize = 15;  // Adjust spacing as needed
+            const nodeSpacingX = 50;
+            const nodeSpacingY = 50;
+            const width = Math.max(800, conceptCount * nodeSpacingX);
+            const height = Math.max(600, (maxLevel + 3) * nodeSpacingY);
+
+            // **Set SVG size dynamically**
+            svg.attr("width", width)
+                .attr("height", height)
+                .attr("viewBox", `0 0 ${width} ${height}`);
+
+
+            // Compute max level to center the lattice
+
+            // Assign positions to concepts based on their level
+            concepts.forEach((c, i) => {
+                c.x = c.ind_val * nodeSpacingX; //(i % 3) * nodeSpacingX + width / 4;
+                c.y = 2 * maxLevel + (maxLevel - c.level) * nodeSpacingY;
+                //console.log('pos',i,c.x,c.y,c)
+            });
+
+            // Compute links (edges)
+            const links = [];
+
+            for (let i = 0; i < concepts.length; i++) {
+                //console.log()
+                for (let j = 0; j < concepts[i].children.length; j++) {
+                    //    if (i !== j && concepts[j].intent.includes(...concepts[i].intent)) {
+                    links.push({ source: concepts[i], target: concepts[i].children[j] });
+                    //    }
+                }
             }
-        });
-    });
-	
-	
-	function removeGrandC(parent,descendants){
-		for (child of descendants){
-			for (grandC of child.children){
-				if (parent.children.includes(grandC)){
-					parent.children.splice(parent.children.indexOf(grandC),1);
-				}
-				removeGrandC(parent,grandC.children);
-			}
-			removeGrandC(child,child.children);
-		}
-	}
-	console.log('conceptList',conceptList)
-    conceptList.forEach(concept=>removeGrandC(concept,concept.children));
-    
-    for (concept of conceptList){
-        for (child of concept.children){
-            concept['new_intent']=concept.intent.filter(item => !child.intent.includes(item));
-            child['new_extent']=child.extent.filter(item => !concept.extent.includes(item));
+
+
+
+            // Define drag behavior
+            const drag = d3.drag()
+                .on("start", function (event, d) {
+                    d3.select(this).raise().attr("stroke", "gray");
+                })
+                .on("drag", function (event, d) {
+                    d.x = event.x;
+                    d.y = event.y;
+                    d3.select(this).attr("cx", d.x).attr("cy", d.y);
+                    svg.selectAll(".link")
+                        .filter(l => l.source === d || l.target === d)
+                        .attr("x1", l => l.source.x)
+                        .attr("y1", l => l.source.y)
+                        .attr("x2", l => l.target.x)
+                        .attr("y2", l => l.target.y);
+                    svg.selectAll(".label")
+                        .filter(l => l === d)
+                        .attr("x", d.x)
+                        .attr("y", d.y - 25);
+                    svg.selectAll(".extent-label")
+                        .filter(l => l === d)
+                        .attr("x", d.x)
+                        .attr("y", d.y + 35);
+                })
+                .on("end", function () {
+                    d3.select(this).attr("stroke", null);
+                });
+
+            // Draw links (edges)
+            svg.selectAll("line")
+                .data(links)
+                .enter()
+                .append("line")
+                .attr("class", "link")
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y)
+                .attr("stroke", "gray");
+
+            // Draw nodes (concepts)
+            const nodes = svg.selectAll("circle")
+                .data(concepts)
+                .enter()
+                .append("circle")
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y)
+                .attr("r", 10)
+                .attr("fill", "#4caf50")
+                .attr("stroke", "gray")
+                .attr("stroke-width", 1.5)
+                .call(drag)
+                .on("mouseover", function (event, d) {
+                    d3.select(this).attr("fill", "#ffcc00"); // Highlight on hover
+                    svg.selectAll(".link")
+                        .filter(l => l.source === d || l.target === d)
+                        .attr("stroke", "red")
+                        .attr("stroke-width", 2);
+                })
+                .on("mouseout", function () {
+                    d3.select(this).attr("fill", "#4caf50"); // Reset color
+                    svg.selectAll(".link")
+                        .attr("stroke", "gray")
+                        .attr("stroke-width", 1);
+                })
+                .on("click", function (event, d) {
+                    alert(`Extent (Gᵢ): {${d.extent.join(", ")}}\nIntent (Mⱼ): {${d.intent.join(", ")}}`);
+                });
+
+            // Draw extent (objects G_i) below the nodes
+            svg.selectAll(".extent-label")
+                .data(concepts)
+                .enter()
+                .append("text")
+                .attr("class", "extent-label")
+                .attr("x", d => d.x)
+                .attr("y", d => d.y + 20)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "12px")
+                .attr("fill", "#888")
+                .text(d => d.new_extent.length > 0 ? `{${d.new_extent.join(",")}}` : "");
+
+            // Draw intent (attributes M_j) above the nodes
+            svg.selectAll(".intent-label")
+                .data(concepts)
+                .enter()
+                .append("text")
+                .attr("class", "label")
+                .attr("x", d => d.x)
+                .attr("y", d => d.y - 10)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "12px")
+                .attr("fill", "#888")
+                .text(d => `{${d.new_intent.join(",")}}`);
+
+
+
         }
-    }
 
-    return conceptList;
-}
 
-// **Helper function to check subset relation**
-function isSubset(subset, superset) {
-    return subset.every(item => superset.includes(item));
-}
+
+
+        function getTableAsList() {
+            let tableData = [];
+
+            // Get attribute names from header row
+            let headerRow = [""];
+            document.querySelectorAll("#header-row th input").forEach(input => {
+                headerRow.push(input.value);
+            });
+            tableData.push(headerRow);
+
+            // Get rows with object names and relations
+            document.querySelectorAll("#fca-table tbody tr").forEach(row => {
+                let rowData = [];
+                let objectName = row.querySelector("th input").value;
+                rowData.push(objectName); // Add object name
+
+                row.querySelectorAll("td").forEach(cell => {
+                    rowData.push(cell.classList.contains("active") ? "X" : "");
+                });
+
+                tableData.push(rowData);
+            });
+
+            //console.log(tableData); // Debugging output
+            return tableData;
+        }
+
+
+        function computeFormalConceptsFromList(context) {
+            const objects = context.slice(1).map(row => row[0]); // Extract object names
+            const attributes = context[0].slice(1); // Extract attribute names
+            const relations = context.slice(1).map(row => row.slice(1)); // Extract relations ("X" or "")
+
+            function attributeClosure(objSubset) {
+                let intent = [...attributes]; // Start with all attributes
+                objSubset.forEach(obj => {
+                    let objIndex = objects.indexOf(obj);
+                    let objIntent = attributes.filter((_, j) => relations[objIndex][j] === "X");
+                    intent = intent.filter(attr => objIntent.includes(attr)); // Intersection
+                });
+                return intent;
+            }
+
+            function objectClosure(attrSubset) {
+                let extent = objects.filter(obj => {
+                    let objIndex = objects.indexOf(obj);
+                    return attrSubset.every(attr => relations[objIndex][attributes.indexOf(attr)] === "X");
+                });
+                return extent;
+            }
+
+            const concepts = new Map();
+            let ind_val = {}
+
+            // Generate all possible subsets of attributes (powerset)
+            const powerSet = (arr) => arr.reduce((subsets, value) =>
+                subsets.concat(subsets.map(set => [value, ...set])), [[]]);
+
+            powerSet(attributes).forEach(attrSubset => {
+                let extent = objectClosure(attrSubset);
+                let intent = attributeClosure(extent);
+                let key = JSON.stringify({ extent, intent });
+                let level = intent.length - extent.length + objects.length
+                if (!(level in ind_val)) {
+                    ind_val[level] = 0; // Initialize with 0 if it doesn't exist
+                }
+                if (!concepts.has(key)) {
+                    ind_val[level]++;
+                    concepts.set(key, { extent, intent, level: level, ind_val: ind_val[level], new_extent: [], new_intent: [] });
+                }
+            });
+
+            let conceptList = Array.from(concepts.values()).sort((a, b) => a.level - b.level);
+
+            // **Fix: Establish Parent-Child Relationships**
+            conceptList.forEach(concept => {
+                concept.children = [];
+                conceptList.forEach(otherConcept => {
+                    if (concept !== otherConcept &&
+                        isSubset(concept.extent, otherConcept.extent) &&
+                        isSubset(otherConcept.intent, concept.intent)) {
+                        concept.children.push(otherConcept);
+                        //console.log('child',concept.extent, otherConcept.extent)
+                    }
+                });
+            });
+
+
+            function removeGrandC(parent, descendants) {
+                for (child of descendants) {
+                    for (grandC of child.children) {
+                        if (parent.children.includes(grandC)) {
+                            parent.children.splice(parent.children.indexOf(grandC), 1);
+                        }
+                        removeGrandC(parent, grandC.children);
+                    }
+                    removeGrandC(child, child.children);
+                }
+            }
+            console.log('conceptList', conceptList)
+            conceptList.forEach(concept => removeGrandC(concept, concept.children));
+
+            for (concept of conceptList) {
+                for (child of concept.children) {
+                    concept['new_intent'] = concept.intent.filter(item => !child.intent.includes(item));
+                    child['new_extent'] = child.extent.filter(item => !concept.extent.includes(item));
+                }
+            }
+
+            return conceptList;
+        }
+
+        // **Helper function to check subset relation**
+        function isSubset(subset, superset) {
+            return subset.every(item => superset.includes(item));
+        }
 
 
         // Function to add a new row (G)
@@ -402,7 +453,7 @@ function isSubset(subset, superset) {
             let cell = document.createElement('td');
             cell.textContent = value === 'X' ? 'X' : '';  // Initially set to '' or 'X' from upload
             if (value === 'X') cell.classList.add('active');
-            cell.addEventListener('click', function() {
+            cell.addEventListener('click', function () {
                 if (this.classList.contains('active')) {
                     this.classList.remove('active');
                     this.textContent = '';  // Unset relation
@@ -460,37 +511,117 @@ function isSubset(subset, superset) {
             if (!file) return;
 
             let reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = function (event) {
                 let csvData = event.target.result;
-                let rows = csvData.split('\n').map(row => row.split(','));
-
-                // Clear the existing table
-                document.querySelector('#fca-table tbody').innerHTML = '';
-                document.querySelector('#header-row').innerHTML = '<th></th>'; // Reset headers
-                rowCount = 0;
-                colCount = 0;
-
-                // Load column headers
-                let headerRow = rows.shift();
-                headerRow.slice(1).forEach(header => addColumn(header));
-
-                // Load rows and their data
-                rows.forEach(row => {
-                    let rowName = row[0];
-                    let rowValues = row.slice(1);
-                    addRow(rowName);
-
-                    let lastRow = document.querySelector('#fca-table tbody tr:last-child');
-                    let cells = lastRow.querySelectorAll('td');
-                    rowValues.forEach((value, index) => {
-                        cells[index].textContent = value === 'X' ? 'X' : '';
-                        if (value === 'X') cells[index].classList.add('active');
-                    });
-                });
+                loadTableFromList(csvData)
+                generateConceptLattice()
             };
             reader.readAsText(file);
+            
         }
+
+        function loadTableFromList(csvData) {
+            let rows = csvData.split('\n').map(row => row.split(','));
+
+// Clear the existing table
+document.querySelector('#fca-table tbody').innerHTML = '';
+document.querySelector('#header-row').innerHTML = '<th></th>'; // Reset headers
+rowCount = 0;
+colCount = 0;
+
+// Load column headers
+let headerRow = rows.shift();
+headerRow.slice(1).forEach(header => addColumn(header));
+
+// Load rows and their data
+rows.forEach(row => {
+    let rowName = row[0];
+    let rowValues = row.slice(1);
+    addRow(rowName);
+
+    let lastRow = document.querySelector('#fca-table tbody tr:last-child');
+    let cells = lastRow.querySelectorAll('td');
+    rowValues.forEach((value, index) => {
+        cells[index].textContent = value === 'X' ? 'X' : '';
+        if (value === 'X') cells[index].classList.add('active');
+    });
+});
+
+        }
+
+        // function loadTableFromList(context) {
+        //     document.querySelector("#fca-table").innerHTML = ""; // Clear table
+
+        //     // Create header row
+        //     let headerRow = document.createElement("tr");
+        //     headerRow.innerHTML = "<th></th>"; // Empty corner cell
+        //     context[0].slice(1).forEach(attr => {
+        //         let th = document.createElement("th");
+        //         let input = document.createElement("input");
+        //         input.type = "text";
+        //         input.value = attr;
+        //         th.appendChild(input);
+        //         headerRow.appendChild(th);
+        //     });
+        //     document.querySelector("#fca-table").appendChild(headerRow);
+
+        //     // Create data rows
+        //     context.slice(1).forEach(row => {
+        //         let tr = document.createElement("tr");
+
+        //         let th = document.createElement("th");
+        //         let input = document.createElement("input");
+        //         input.type = "text";
+        //         input.value = row[0]; // Object name
+        //         th.appendChild(input);
+        //         tr.appendChild(th);
+
+        //         row.slice(1).forEach(cell => {
+        //             let td = document.createElement("td");
+        //             td.textContent = cell === "X" ? "X" : "";
+        //             if (cell === "X") td.classList.add("active"); // Highlight active cells
+        //             td.addEventListener("click", function () {
+        //                 this.textContent = this.textContent === "X" ? "" : "X";
+        //                 this.classList.toggle("active");
+        //             });
+        //             tr.appendChild(td);
+        //         });
+
+        //         document.querySelector("#fca-table").appendChild(tr);
+        //     });
+        // }
+
+
+        function getTableAsList() {
+            let tableData = [];
+
+            // Get attribute names from header row
+            let headerRow = [""];
+            document.querySelectorAll("#fca-table th input").forEach(input => {
+                headerRow.push(input.value);
+            });
+            tableData.push(headerRow);
+
+            // Get object names and relations
+            document.querySelectorAll("#fca-table tbody tr").forEach(row => {
+                let rowData = [];
+                let objectName = row.querySelector("th input").value;
+                rowData.push(objectName); // Object name
+
+                row.querySelectorAll("td").forEach(cell => {
+                    rowData.push(cell.classList.contains("active") ? "X" : "");
+                });
+
+                tableData.push(rowData);
+            });
+
+            return tableData;
+        }
+
+
+
     </script>
 
 </body>
+
 </html>
