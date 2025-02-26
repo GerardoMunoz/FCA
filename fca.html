@@ -100,22 +100,22 @@
         //BUGS
         // no se lee la última columna del CSV en rubric_006.csv
         // no guerda el JSON
-        
+
         //GOOD
         // seve and restore CSV
 
 
         // TO DO
         // Consistencia entre el retículo y el contexto, al guardar y al recuperar
-           // preservar la  pos de los que ya estan y borrar los que sobran
+        // preservar la  pos de los que ya estan y borrar los que sobran
         // seleccionar y mover varios conceptos al tiempo
         //resize textbox
 
- 
+
         // OPTIMIZE
         // quitar allconepts y usar concept_Dic
         // getableAsLit 1 y 2
-        
+
 
         let rowCount = 0;
         let colCount = 0;
@@ -134,9 +134,9 @@
 
 
         function downloadJSON() {
-            let tabla= getTableAsList2();
-            tabla=tabla.map(innerList => innerList.join(',')).join('\n');
-            console.log('tabla',tabla)
+            let tabla = getTableAsList2();
+            tabla = tabla.map(innerList => innerList.join(',')).join('\n');
+            console.log('tabla', tabla)
             const data = {
                 context: tabla,
                 concepts: Array.from(concepts_dic.entries())
@@ -148,6 +148,31 @@
             link.click();
         }
 
+
+        // function uploadJSON(input) {
+        //     const file = input.files[0];
+        //     if (!file) return;
+
+        //     const reader = new FileReader();
+        //     reader.onload = function (event) {
+        //         const data = JSON.parse(event.target.result);
+
+        //         // Restore the table (context)
+        //         loadTableFromList(data.context.split("\n").map(row => row.split(",")));
+
+        //         // Restore concepts_dic (convert array back to Map)
+        //         concepts_dic = new Map(data.concepts);
+
+        //         console.log("uploadJSON", concepts_dic);
+
+        //         // Visualize the loaded concept lattice
+        //         visualizeLattice(concepts_dic);
+        //     };
+
+        //     reader.readAsText(file);
+        // }
+
+
         function uploadJSON(input) {
             const file = input.files[0];
             if (!file) return;
@@ -156,11 +181,12 @@
             reader.onload = function (event) {
                 const data = JSON.parse(event.target.result);
                 loadTableFromList(data.context);
-                const context = getTableAsList()
-                concepts = new Map(data.concepts);
-                const allconcepts = computeFormalConceptsFromList(context)
-                console.log('uploadJSON', concepts,allconcepts,context)
-                visualizeLattice(allconcepts);
+                //const context = getTableAsList()
+                //concepts = new Map(data.concepts);
+                //const allconcepts = computeFormalConceptsFromList(context)
+                concepts_dic = new Map(data.concepts);
+                console.log('uploadJSON', data,concepts_dic)
+                visualizeLattice();
             };
 
             reader.readAsText(file);
@@ -168,7 +194,7 @@
 
 
         function visualizeLattice() {
-            
+            //console.log('vis',concepts_dic)
             let concepts = Array.from(concepts_dic.values()).sort((a, b) => a.level - b.level);
 
             const svg = d3.select("#lattice");
@@ -194,8 +220,11 @@
 
             // Assign positions to concepts based on their level
             concepts.forEach((c, i) => {
-                c.x = c.ind_val * nodeSpacingX; //(i % 3) * nodeSpacingX + width / 4;
-                c.y = 2 * maxLevel + (maxLevel - c.level) * nodeSpacingY;
+                //console.log('x,y_a',c.x,c.y,c["x"],c["y"],c,Object.keys(c))
+                c.x = c.x ?? c.ind_val * nodeSpacingX; //(i % 3) * nodeSpacingX + width / 4;
+                c.y = c.y ?? 2 * maxLevel + (maxLevel - c.level) * nodeSpacingY;
+                //c.xy = [c.x,c.y]
+                //console.log('x,y_b',c.x,c.y,c["x"],c["y"],c,Object.keys(c))
                 //console.log('pos',i,c.x,c.y,c)
             });
 
@@ -206,13 +235,13 @@
                 //console.log()
                 for (let j = 0; j < concepts[i].children_ref.length; j++) {
                     //    if (i !== j && concepts[j].intent.includes(...concepts[i].intent)) {
-                        console.log('link1',concepts[i].children_ref[j],typeof concepts[i].children_ref[j])
-                        console.log('link2',concepts_dic[concepts[i].children_ref[j]],typeof concepts_dic[concepts[i].children_ref[j]])
-                        links.push({ source: concepts[i], target: concepts_dic.get(concepts[i].children_ref[j]) });
+                    //console.log('link1',concepts[i].children_ref[j],typeof concepts[i].children_ref[j])
+                    //console.log('link2',concepts_dic[concepts[i].children_ref[j]],typeof concepts_dic[concepts[i].children_ref[j]])
+                    links.push({ source: concepts[i], target: concepts_dic.get(concepts[i].children_ref[j]) });
                     //    }
                 }
             }
-            console.log('links',links)
+            console.log('links', links)
 
 
             // Define drag behavior
@@ -340,7 +369,7 @@
                 tableData.push(rowData);
             });
 
-            console.log('getTableAsList2',tableData); // Debugging output
+            console.log('getTableAsList2', tableData); // Debugging output
             return tableData;
         }
 
@@ -395,8 +424,8 @@
             // **Fix: Establish Parent-Child Relationships**
             concepts.forEach(concept => {
                 concept.children = [];
-                
-                console.log('concept.children1',concept.children)
+
+                console.log('concept.children1', concept.children)
                 concepts.forEach(otherConcept => {
                     if (concept !== otherConcept &&
                         isSubset(concept.extent, otherConcept.extent) &&
@@ -407,9 +436,9 @@
                 });
             });
 
-            console.log('concepts1',concepts)
+            console.log('concepts1', concepts)
             concepts.forEach(concept => removeGrandC(concept, concept.children));
- 
+
             function removeGrandC(parent, descendants) {
                 for (child of descendants) {
                     for (grandC of child.children) {
@@ -421,33 +450,33 @@
                     removeGrandC(child, child.children);
                 }
             }
-          
-            console.log('concepts2',concepts)
 
-            for (let [key, concept] of concepts) { 
+            console.log('concepts2', concepts)
+
+            for (let [key, concept] of concepts) {
                 console.log(`Key: ${key}, Value:`, concept);
             }
 
-            for (let [key,concept] of concepts) {
+            for (let [key, concept] of concepts) {
                 //concept=concepts[key]
                 //console.log(concept.constructor.name)
                 //concept.set('children_ref',[])
-                concept['children_ref']=[]
-                console.log('concept.children2',concept,concept.children)
+                concept['children_ref'] = []
+                console.log('concept.children2', concept, concept.children)
                 for (child of concept.children) {
                     concept['new_intent'] = concept.intent.filter(item => !child.intent.includes(item));
                     child['new_extent'] = child.extent.filter(item => !concept.extent.includes(item));
-                    concept['children_ref'].push(JSON.stringify({ extent: child.extent, intent: child.intent }) )
+                    concept['children_ref'].push(JSON.stringify({ extent: child.extent, intent: child.intent }))
                     delete concept.children
                 }
             }
 
-            console.log('concepts2',concepts)
-           //console.log('conceptList', conceptList)
+            console.log('concepts2', concepts)
+            //console.log('conceptList', conceptList)
 
             //concepts.delete("children");
-            concepts_dic=concepts;
-            console.log('concepts3',concepts_dic);
+            concepts_dic = concepts;
+            console.log('concepts3', concepts_dic);
             //return concepts_dic;
         }
 
@@ -569,35 +598,35 @@
                 generateConceptLattice()
             };
             reader.readAsText(file);
-            
+
         }
 
         function loadTableFromList(csvData) {
             let rows = csvData.split('\n').map(row => row.split(','));
 
-// Clear the existing table
-document.querySelector('#fca-table tbody').innerHTML = '';
-document.querySelector('#header-row').innerHTML = '<th></th>'; // Reset headers
-rowCount = 0;
-colCount = 0;
+            // Clear the existing table
+            document.querySelector('#fca-table tbody').innerHTML = '';
+            document.querySelector('#header-row').innerHTML = '<th></th>'; // Reset headers
+            rowCount = 0;
+            colCount = 0;
 
-// Load column headers
-let headerRow = rows.shift();
-headerRow.slice(1).forEach(header => addColumn(header));
+            // Load column headers
+            let headerRow = rows.shift();
+            headerRow.slice(1).forEach(header => addColumn(header));
 
-// Load rows and their data
-rows.forEach(row => {
-    let rowName = row[0];
-    let rowValues = row.slice(1);
-    addRow(rowName);
+            // Load rows and their data
+            rows.forEach(row => {
+                let rowName = row[0];
+                let rowValues = row.slice(1);
+                addRow(rowName);
 
-    let lastRow = document.querySelector('#fca-table tbody tr:last-child');
-    let cells = lastRow.querySelectorAll('td');
-    rowValues.forEach((value, index) => {
-        cells[index].textContent = value === 'X' ? 'X' : '';
-        if (value === 'X') cells[index].classList.add('active');
-    });
-});
+                let lastRow = document.querySelector('#fca-table tbody tr:last-child');
+                let cells = lastRow.querySelectorAll('td');
+                rowValues.forEach((value, index) => {
+                    cells[index].textContent = value === 'X' ? 'X' : '';
+                    if (value === 'X') cells[index].classList.add('active');
+                });
+            });
 
         }
 
@@ -666,7 +695,7 @@ rows.forEach(row => {
 
                 tableData.push(rowData);
             });
-            console.log('getTableAsList',tableData)
+            console.log('getTableAsList', tableData)
             return tableData;
         }
 
